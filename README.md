@@ -32,4 +32,5 @@ note: all of the following can be escaped using ```\```
 ### to do
 
 - clozures? (using ```==highlighting==``` or ```**bolding**```)
+- better flashcard-picking algorithm (currently just picks a random due card)
 - custom flashcards directory (currently ```flashcards``` subdirectory)

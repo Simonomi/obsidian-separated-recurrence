@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-separated-recurrence",
-	"version": "0.13.0",
+	"version": "0.9.0",
 	"description": "separated recurrence",
 	"main": "main.js",
 	"scripts": {
