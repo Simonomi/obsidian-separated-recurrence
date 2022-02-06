@@ -1,11 +1,10 @@
 {
-	"name": "obsidian-sr-two",
+	"name": "obsidian-separated-recurrence",
 	"version": "0.13.0",
-	"description": "this is my custom implementation of spaced repetition",
+	"description": "separated recurrence",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
-		"postdev": "./copyToObsidian.sh.sh",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production"
 	},
 	"keywords": [],

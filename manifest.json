@@ -1,6 +1,6 @@
 {
-	"id": "obsidian-sr-two",
-	"name": "spaced repetition",
+	"id": "obsidian-separated-recurrence",
+	"name": "separated recurrence",
 	"version": "1.1.0",
 	"minAppVersion": "0.13.0",
 	"description": "this is my custom implementation of spaced repetition",

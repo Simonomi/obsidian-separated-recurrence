@@ -10,13 +10,31 @@ if you want to view the source, please visit the github repository of this plugi
 */
 `;
 
-const filesToCopy = {
-	"/Users/simonomi/Library/Mobile Documents/iCloud~md~obsidian/Documents/main/.obsidian/plugins/obsidian-sr-two/main.js": "/Users/simonomi/Desktop/main.dupe"
-};
+const sourceDirectory = "/Users/simonomi/google drive​/github/obsidian-separated-recurrence/"
+const destinationDirectory = "/Users/simonomi/Library/Mobile Documents/iCloud~md~obsidian/Documents/main/.obsidian/plugins/obsidian-separated-recurrence/"
+const filesToCopy = [
+	"main.js",
+	"manifest.json",
+	"styles.css"
+]
 
-for (const [source, destination] of Object.entries(filesToCopy)) {
-	fs.copyFile(source, destination, (error) => {console.log(error)})
+function copyFiles() {
+	if (!fs.existsSync(destinationDirectory)){
+		fs.mkdirSync(destinationDirectory);
+	}
+	
+	for (const file of filesToCopy) {
+		const source = sourceDirectory + file
+		const destination = destinationDirectory + file
+		fs.copyFile(source, destination, (error) => {
+			if (error != null) {
+				console.log(error)
+			}
+		})
+	}
 }
+
+copyFiles()
 
 const prod = (process.argv[2] === 'production');
 
@@ -55,9 +73,7 @@ esbuild.build({
 	watch: !prod,
 	watch: {
 		onRebuild(error, result) {
-			for (const [source, destination] of Object.entries(filesToCopy)) {
-				fs.copyFile(source, destination, (error) => {console.log(error)})
-			}
+			copyFiles()
 		},
 	},
 	target: 'es2016',

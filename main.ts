@@ -16,7 +16,7 @@ export default class MyPlugin extends Plugin {
 					let fileText = await this.app.vault.read(file);
  					const fileLinesWithoutComments = fileText.replace(commentRegex, "$1").split("\n").filter(line => line != "");
 					for (let line of fileLinesWithoutComments) {
-						const originalLine = line
+						const originalLine = line;
 						let srCommentMatches = line.match(srCommentRegex);
 						if (srCommentMatches) {
 							line = line.replace(srCommentRegex, "");
@@ -27,11 +27,11 @@ export default class MyPlugin extends Plugin {
 						if (line.match("::")) {
 							const [term, definition] = line.split("::");
 							const isDoubleSided = true;
-							allCards.push(new Card(this.app, term, definition, isDoubleSided, srCommentMatches, file, originalLine))
+							allCards.push(new Card(this.app, term, definition, isDoubleSided, srCommentMatches, file, originalLine));
 						} else if (line.match(":")) {
 							const [term, definition] = line.split(":");
 							const isDoubleSided = false;
-							allCards.push(new Card(this.app, term, definition, isDoubleSided, srCommentMatches, file, originalLine))
+							allCards.push(new Card(this.app, term, definition, isDoubleSided, srCommentMatches, file, originalLine));
 						}
 					}
 				}
