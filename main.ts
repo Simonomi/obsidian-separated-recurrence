@@ -1,137 +1,283 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { App, Editor, MarkdownView, MarkdownRenderer, Modal, Notice, Plugin, PluginSettingTab, Setting } from "obsidian";
+import { Card } from "card";
 
-// Remember to rename these classes and interfaces!
+// TODO: select subfolders or specific notes
+// TODO: make included folders/notes more programatic
 
-interface MyPluginSettings {
-	mySetting: string;
-}
-
-const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default'
-}
+const commentRegex = /(%%sr[\w\W]*?[^\\]%%)|(?:%%[\w\W]*?(?:[^\\]%%|$))|(?:---[\w\W]*)|(?:<!--[\w\W]*?-->)/g
+const srCommentRegex = /%%sr[\w\W]*?[^\\]%%/g
 
 export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
-
 	async onload() {
-		await this.loadSettings();
-
-		// This creates an icon in the left ribbon.
-		const ribbonIconEl = this.addRibbonIcon('dice', 'Sample Plugin', (evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
-		});
-		// Perform additional things with the ribbon
-		ribbonIconEl.addClass('my-plugin-ribbon-class');
-
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status Bar Text');
-
-		// This adds a simple command that can be triggered anywhere
-		this.addCommand({
-			id: 'open-sample-modal-simple',
-			name: 'Open sample modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
-			}
-		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'sample-editor-command',
-			name: 'Sample editor command',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				console.log(editor.getSelection());
-				editor.replaceSelection('Sample Editor Command');
-			}
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-sample-modal-complex',
-			name: 'Open sample modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
+		this.addRibbonIcon("sheets-in-box", "sr", async (evt: MouseEvent) => {
+			let allCards: Card[] = []
+			for (let file of this.app.vault.getMarkdownFiles()) {
+				if (file.path.startsWith("flashcards")) {
+					let fileText = await this.app.vault.read(file);
+ 					const fileLinesWithoutComments = fileText.replace(commentRegex, "$1").split("\n").filter(line => line != "");
+					for (let line of fileLinesWithoutComments) {
+						const originalLine = line
+						let srCommentMatches = line.match(srCommentRegex);
+						if (srCommentMatches) {
+							line = line.replace(srCommentRegex, "");
+						} else {
+							srCommentMatches = [];
+						}
+						
+						if (line.match("::")) {
+							const [term, definition] = line.split("::");
+							const isDoubleSided = true;
+							allCards.push(new Card(this.app, term, definition, isDoubleSided, srCommentMatches, file, originalLine))
+						} else if (line.match(":")) {
+							const [term, definition] = line.split(":");
+							const isDoubleSided = false;
+							allCards.push(new Card(this.app, term, definition, isDoubleSided, srCommentMatches, file, originalLine))
+						}
 					}
-
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
 				}
 			}
+			
+			new SampleModal(this.app, allCards).open();
 		});
-
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
-
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			console.log('click', evt);
-		});
-
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
+		
+// 		this.addSettingTab(new SampleSettingTab(this.app, this));
+// 		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
 	}
 
-	onunload() {
-
-	}
-
-	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-	}
-
-	async saveSettings() {
-		await this.saveData(this.settings);
-	}
+	onunload() {}
 }
 
 class SampleModal extends Modal {
-	constructor(app: App) {
+	showingBack: boolean = false
+	buttonDiv: HTMLElement
+	frontDiv: HTMLElement
+	backDiv: HTMLElement
+	showAnswerButton: HTMLElement
+	cards: Card[]
+	currentCardIndex: number = -1
+	currentFlashcard: Flashcard
+	
+	constructor(app: App, cards: Card[]) {
 		super(app);
+		this.cards = cards.filter(x => x.isDue())
 	}
-
+	
 	onOpen() {
 		const {contentEl} = this;
-		contentEl.setText('Woah!');
+		this.modalEl.setAttribute("id", "sr-modal");
+		
+		document.body.onkeydown = (key) => {
+			switch (key.code) {
+				case 'KeyW':
+				case 'KeyI':
+					if (this.showingBack) {
+						this.markWrong()
+					}
+					break;
+				case 'KeyA':
+				case 'KeyJ':
+					if (this.showingBack) {
+						this.markEasy()
+					}
+					break;
+				case 'KeyS':
+				case 'KeyK':
+					if (this.showingBack) {
+						this.markMedium()
+					}
+					break;
+				case 'KeyD':
+				case 'KeyL':
+					if (this.showingBack) {
+						this.markHard()
+					}
+					break;
+				case "Space":
+					if (!this.showingBack) {
+						this.showBack();
+					}
+			}
+		}
+		
+		this.headingDiv = contentEl.createDiv();
+        this.headingDiv.setAttribute("id", "sr-modal-heading");
+		
+		this.headingRightDiv = contentEl.createDiv();
+        this.headingRightDiv.setAttribute("id", "sr-modal-heading-right");
+		
+		this.frontDiv = contentEl.createDiv();
+        this.frontDiv.setAttribute("class", "sr-modal-text");
+		
+		this.backDiv = contentEl.createDiv();
+		this.backDiv.style.display = "none"
+        this.backDiv.setAttribute("class", "sr-modal-text");
+		
+		this.buttonDiv = contentEl.createDiv();
+		this.buttonDiv.setAttribute("id", "sr-buttons");
+        
+		let easyButton = this.buttonDiv.createDiv();
+        easyButton.setAttribute("class", "sr-button");
+        easyButton.setAttribute("id", "sr-easy-button");
+        easyButton.setText("easy")
+        easyButton.addEventListener("click", () => {
+			this.markEasy()
+        });
+        
+		let mediumButton = this.buttonDiv.createDiv();
+        mediumButton.setAttribute("class", "sr-button");
+        mediumButton.setAttribute("id", "sr-medium-button");
+        mediumButton.setText("medium");
+        mediumButton.addEventListener("click", () => {
+			this.markMedium()
+        });
+        
+		let hardButton = this.buttonDiv.createDiv();
+        hardButton.setAttribute("class", "sr-button");
+        hardButton.setAttribute("id", "sr-hard-button");
+        hardButton.setText("hard");
+        hardButton.addEventListener("click", () => {
+			this.markHard()
+        });
+        
+		let wrongButton = this.buttonDiv.createDiv();
+        wrongButton.setAttribute("class", "sr-button");
+        wrongButton.setAttribute("id", "sr-wrong-button");
+        wrongButton.setText("wrong")
+        wrongButton.addEventListener("click", () => {
+			this.markWrong()
+        });
+		
+		this.showAnswerButton = contentEl.createDiv();
+        this.showAnswerButton.setAttribute("id", "sr-show-answer-button");
+        this.showAnswerButton.setText("show answer");
+        this.showAnswerButton.addEventListener("click", () => {
+			this.showBack();
+        });
+        
+        this.nextCard();
+	}
+	
+	nextCard() {
+		this.hideBack();
+		
+		if (this.currentCardIndex != -1) {
+			this.cards[this.currentCardIndex].writeChanges();
+		}
+		
+		if (this.currentCardIndex != -1 && !this.cards[this.currentCardIndex].isDue()) {
+			this.cards.splice(this.currentCardIndex, 1);
+			this.currentCardIndex = -1;
+		}
+		
+		if (this.cards.length == 0) {
+			new Notice("no cards are due");
+			this.close();
+			return
+		} else if (this.cards.length == 1) {
+			this.currentCardIndex = -1;
+		}
+		
+		let randomIndex = this.currentCardIndex;
+		do {
+			randomIndex = Math.floor(Math.random() * this.cards.length)
+		} while (randomIndex == this.currentCardIndex);
+		
+		this.currentCardIndex = randomIndex;
+		this.currentFlashcard = this.cards[this.currentCardIndex].getFlashcard();
+		
+		this.renderHeaderText(this.cards[this.currentCardIndex].file.name.replace(".md", ""))
+		this.renderFrontText(this.currentFlashcard.front);
+		this.loadBackText(this.currentFlashcard.back)
+	}
+	
+	renderHeaderText(text: string) {
+		this.headingDiv.empty();
+		this.headingRightDiv.empty();
+		MarkdownRenderer.renderMarkdown(text, this.headingDiv);
+		
+		const dueFlashcardCount = this.cards.flatMap(x => x.flashcards).filter(x => x.isDue()).length;
+		const rightHeaderString = String(dueFlashcardCount);
+		MarkdownRenderer.renderMarkdown(rightHeaderString, this.headingRightDiv);
+	}
+	
+	renderFrontText(text: string) {
+		this.frontDiv.empty();
+		MarkdownRenderer.renderMarkdown(text, this.frontDiv);
+	}
+	
+	loadBackText(text: string) {
+		this.backDiv.empty();
+		let divider = this.backDiv.createEl("hr");
+		divider.setAttribute("id", "sr-divider");
+		MarkdownRenderer.renderMarkdown(text, this.backDiv);
+	}
+	
+	showBack() {
+		this.showingBack = true;
+		this.backDiv.style.display = "block";
+		this.buttonDiv.style.display = "block";
+		this.showAnswerButton.style.display = "none";
+	}
+	
+	markEasy() {
+		this.currentFlashcard.markAs("easy");
+		this.nextCard();
+	}
+	
+	markMedium() {
+		this.currentFlashcard.markAs("medium");
+		this.nextCard();
+	}
+	
+	markHard() {
+		this.currentFlashcard.markAs("hard");
+		this.nextCard();
+	}
+	
+	markWrong() {
+		this.currentFlashcard.markAs("wrong");
+		this.nextCard();
+	}
+	
+	hideBack() {
+		this.showingBack = false;
+		this.backDiv.style.display = "none";
+		this.buttonDiv.style.display = "none";
+		this.showAnswerButton.style.display = "block";
 	}
 
 	onClose() {
 		const {contentEl} = this;
+		document.body.onkeydown = (key) => {};
 		contentEl.empty();
 	}
 }
 
-class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
-
-	constructor(app: App, plugin: MyPlugin) {
-		super(app, plugin);
-		this.plugin = plugin;
-	}
-
-	display(): void {
-		const {containerEl} = this;
-
-		containerEl.empty();
-
-		containerEl.createEl('h2', {text: 'Settings for my awesome plugin.'});
-
-		new Setting(containerEl)
-			.setName('Setting #1')
-			.setDesc('It\'s a secret')
-			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
-				.onChange(async (value) => {
-					console.log('Secret: ' + value);
-					this.plugin.settings.mySetting = value;
-					await this.plugin.saveSettings();
-				}));
-	}
-}
+// class SampleSettingTab extends PluginSettingTab {
+// 	plugin: MyPlugin;
+// 
+// 	constructor(app: App, plugin: MyPlugin) {
+// 		super(app, plugin);
+// 		this.plugin = plugin;
+// 	}
+// 
+// 	display(): void {
+// 		const {containerEl} = this;
+// 
+// 		containerEl.empty();
+// 
+// 		containerEl.createEl('h2', {text: 'Settings for my awesome plugin.'});
+// 
+// 		new Setting(containerEl)
+// 			.setName('Setting #1')
+// 			.setDesc('It\'s a secret')
+// 			.addText(text => text
+// 				.setPlaceholder('Enter your secret')
+// 				.setValue(this.plugin.settings.mySetting)
+// 				.onChange(async (value) => {
+// 					console.log('Secret: ' + value);
+// 					this.plugin.settings.mySetting = value;
+// 					await this.plugin.saveSettings();
+// 				}));
+// 	}
+// }

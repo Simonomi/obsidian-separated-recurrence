@@ -1,4 +1,137 @@
-/* Sets all the text color to red! */
-body {
-    color: red;
+#sr-show-answer-button {
+	position: absolute;
+    bottom: 5%;
+    left: 5%;
+    width: 90%;
+    text-align: center;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    padding-left: 2%;
+    padding-right: 2%;
+    border-radius: 5px;
+    background-color: blue;
+    cursor: pointer;
+    transition: color 0.15s;
+}
+
+@media only screen and (max-width: 600px) {
+	#sr-show-answer-button {
+    	bottom: 15%;
+    }
+}
+
+#sr-show-answer-button:active {
+	color: grey !important;
+	transition: color 0s;
+}
+
+#sr-buttons {
+	position: absolute;
+	width: 90%;
+	height: 115px;
+	left: 5%;
+	bottom: 5%;
+	display: none;
+}
+
+@media only screen and (max-width: 600px) {
+	#sr-buttons {
+    	bottom: 15%;
+    }
+}
+
+.sr-button {
+	position: absolute;
+	bottom: 0;
+    width: 32%;
+    text-align: center;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    padding-left: 2%;
+    padding-right: 2%;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: color 0.15s;
+}
+
+.sr-button:active {
+	color: grey !important;
+	transition: color 0s;
+}
+
+#sr-wrong-button {
+	bottom: 50%;
+	left: 34%;
+	background-color: red;
+	color: white;
+}
+
+#sr-easy-button {
+	left: 0;
+	background-color: limegreen;
+	color: black;
+}
+
+#sr-medium-button {
+	left: 34%;
+	background-color: forestgreen;
+	color: white;
+}
+
+#sr-hard-button {
+	right: 0;
+	background-color: darkgreen;
+	color: white;
+}
+
+.sr-modal-text {
+	font-size: 36px;
+	line-height: 38px;
+}
+
+@media only screen and (max-width: 600px) {
+	.sr-modal-text {
+    	max-height: 40px; /* BAND AID */
+    }
+}
+
+#sr-modal-heading {
+	font-size: 18px;
+    color: grey;
+    font-weight: bold;
+    position: absolute;
+    top: 11px;
+    left: 15px;
+}
+
+#sr-modal-heading-right {
+	font-size: 18px;
+    color: grey;
+    font-weight: bold;
+    position: absolute;
+    top: 11px;
+    right: 40px;
+}
+
+#sr-modal {
+	position: absolute;
+	width: 80%;
+	height: 80%;
+	padding: 55px 30px 30px 30px;
+}
+
+@media only screen and (max-width: 600px)  {
+	#sr-modal {
+		padding: 40px 5px 30px 5px;
+		width: 100%;
+	}
+}
+
+#sr-modal * {
+	margin: 0 !important;
+}
+
+#sr-divider {
+    margin-top: 15px !important;
+    margin-bottom: 15px !important;
 }
