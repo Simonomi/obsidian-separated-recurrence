@@ -9,35 +9,55 @@ const srCommentRegex = /%%sr[\w\W]*?[^\\]%%/g
 
 export default class MyPlugin extends Plugin {
 	async onload() {
-		this.addRibbonIcon("sheets-in-box", "sr", async (evt: MouseEvent) => {
-			let allCards: Card[] = []
-			for (let file of this.app.vault.getMarkdownFiles()) {
-				if (file.path.startsWith("flashcards")) {
-					let fileText = await this.app.vault.read(file);
- 					const fileLinesWithoutComments = fileText.replace(commentRegex, "$1").split("\n").filter(line => line != "");
-					for (let line of fileLinesWithoutComments) {
-						const originalLine = line;
-						let srCommentMatches = line.match(srCommentRegex);
-						if (srCommentMatches) {
-							line = line.replace(srCommentRegex, "");
-						} else {
-							srCommentMatches = [];
-						}
-						
-						if (line.match("::")) {
-							const [term, definition] = line.split("::");
-							const isDoubleSided = true;
-							allCards.push(new Card(this.app, term, definition, isDoubleSided, srCommentMatches, file, originalLine));
-						} else if (line.match(":")) {
-							const [term, definition] = line.split(":");
-							const isDoubleSided = false;
-							allCards.push(new Card(this.app, term, definition, isDoubleSided, srCommentMatches, file, originalLine));
-						}
+		this.addRibbonIcon("sheets-in-box", "separated recurrence", async (evt: MouseEvent) => {
+			new SampleModal(this.app, await this.loadCards()).open();
+		});
+		
+		this.addRibbonIcon("calendar-glyph", "divination", async (evt: MouseEvent) => {
+			let allCards = await this.loadCards()
+			
+			let hits0at = -1
+			console.clear()
+			for (var daysInTheFuture = 0; daysInTheFuture < 75; daysInTheFuture++) {
+				let simulatedDate = new Date()
+				simulatedDate.setDate(simulatedDate.getDate() + daysInTheFuture)
+				
+				let cardsDueToday = allCards.filter(x => x.isDue(simulatedDate)).flatMap(x => x.flashcards).filter(x => x.isDue(simulatedDate));
+				
+				const year = simulatedDate.getFullYear().toString().padStart(4, "0");
+				const month = (simulatedDate.getMonth() + 1).toString().padStart(2, "0");
+				const day = simulatedDate.getDate().toString().padStart(2, "0");
+				
+				const formattedDate = `${year}-${month}-${day} `
+				const bar = "=".repeat(cardsDueToday.length / 2)
+				
+				console.log(`${formattedDate} ${bar} ${cardsDueToday.length}`)
+				
+				if (hits0at == -1 && cardsDueToday.length == 0) {
+					hits0at = daysInTheFuture
+				}
+				
+				for (let flashcard of cardsDueToday) {
+					let difficulties = []
+					if (flashcard.difficulty == undefined) {
+						difficulties = ["easy", "medium", "hard", "wrong"]
+					} else if (flashcard.difficulty.level < 10) {
+						difficulties = ["easy", "medium", "hard", "wrong"]
+					} else if (flashcard.difficulty.level < 100) {
+						difficulties = ["easy", "easy", "medium", "medium", "hard", "wrong"]
+					} else if (flashcard.difficulty.level < 1000) {
+						difficulties = ["easy", "medium", "hard"]
+					} else if (flashcard.difficulty.level < 10000) {
+						difficulties = ["easy", "easy", "easy", "medium", "medium", "hard"]
+					} else {
+						difficulties = ["easy", "medium"]
 					}
+					
+					const difficulty = difficulties[Math.floor(Math.random() * difficulties.length)]
+					
+					flashcard.markAs(difficulty, 0, simulatedDate)
 				}
 			}
-			
-			new SampleModal(this.app, allCards).open();
 		});
 		
 // 		this.addSettingTab(new SampleSettingTab(this.app, this));
@@ -45,6 +65,36 @@ export default class MyPlugin extends Plugin {
 	}
 
 	onunload() {}
+	
+	async loadCards(): Card[] {
+		let allCards: Card[] = []
+		for (let file of this.app.vault.getMarkdownFiles()) {
+			if (file.path.startsWith("flashcards")) {
+				let fileText = await this.app.vault.read(file);
+				const fileLinesWithoutComments = fileText.replace(commentRegex, "$1").split("\n").filter(line => line != "");
+				for (let line of fileLinesWithoutComments) {
+					const originalLine = line;
+					let srCommentMatches = line.match(srCommentRegex);
+					if (srCommentMatches) {
+						line = line.replace(srCommentRegex, "");
+					} else {
+						srCommentMatches = [];
+					}
+					
+					if (line.match("::")) {
+						const [term, definition] = line.split("::");
+						const isDoubleSided = true;
+						allCards.push(new Card(this.app, term, definition, isDoubleSided, srCommentMatches, file, originalLine));
+					} else if (line.match(":")) {
+						const [term, definition] = line.split(":");
+						const isDoubleSided = false;
+						allCards.push(new Card(this.app, term, definition, isDoubleSided, srCommentMatches, file, originalLine));
+					}
+				}
+			}
+		}
+		return allCards
+	}
 }
 
 class SampleModal extends Modal {

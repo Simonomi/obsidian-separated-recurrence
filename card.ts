@@ -1,4 +1,4 @@
-const fuzziness = .25 // as a percentage
+const fuzziness = .50 // as a percentage
 
 const furiganaRegex = /{(?<kanji>(?:[\u4E00-\u9FFFㄅ-ㄩぁ-んァ-ンー〇])+)(?<hiragana>(?:\|[^ -\/{-~:-@\[-`]+)*)}/g
 const srCommentRegex = /%%sr(?<type>d|r|kd|kr|)(?<index>\d*?)(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})(?<level>\d+)%%/g
@@ -99,11 +99,11 @@ export class Flashcard {
 		this.type = type;
 	}
 	
-	isDue(): boolean {
-		return this.difficulty == undefined || this.difficulty.dueDate == undefined || new Date() >= this.difficulty.dueDate
+	isDue(currentDate: Date = new Date()): boolean {
+		return this.difficulty == undefined || this.difficulty.dueDate == undefined || isNaN(this.difficulty.dueDate) || currentDate >= this.difficulty.dueDate
 	}
 	
-	markAs(answer: "easy" | "medium" | "hard" | "wrong", index: number = 0) {
+	markAs(answer: "easy" | "medium" | "hard" | "wrong", index: number = 0, currentDate: Date = new Date()) {
 		if (this.difficulty == undefined) {
 			this.difficulty = new Difficulty()
 			this.difficulty.type = this.type
@@ -111,18 +111,18 @@ export class Flashcard {
 		}
 		
 		if (answer == "wrong") {
-			this.difficulty.level = 0
+			this.difficulty.level = Math.round(this.difficulty.level / 2)
 			return
 		}
 		
-		const levelChange = {"easy": 3, "medium": 2, "hard": 1}
-		this.difficulty.level += levelChange[answer]
+		const levelChange = {"easy": 7, "medium": 3, "hard": 1}
+		this.difficulty.level = Math.round((this.difficulty.level + 1) * levelChange[answer])
 		
 		const fuzz = this.difficulty.level * (Math.random() * fuzziness * 2 - fuzziness)
 		const daysToAdd = Math.round(this.difficulty.level + fuzz)
 		
 		let dueDate = new Date()
-		dueDate.setDate(dueDate.getDate() + daysToAdd)
+		dueDate.setDate(currentDate.getDate() + daysToAdd)
 		this.difficulty.dueDate = dueDate
 	}
 }
@@ -194,8 +194,8 @@ export class Card {
 		}
 	}
 	
-	isDue(): boolean {
-		let dueCount = this.flashcards.filter(x => x.isDue()).length
+	isDue(currentDate: Date = new Date()): boolean {
+		let dueCount = this.flashcards.filter(x => x.isDue(currentDate)).length
 		return dueCount * 2 >= this.flashcards.length // due if >= half of its flashcards are due
 	}
 	
