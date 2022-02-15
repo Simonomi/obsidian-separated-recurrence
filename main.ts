@@ -1,11 +1,10 @@
 import { App, Editor, MarkdownView, MarkdownRenderer, Modal, Notice, Plugin, PluginSettingTab, Setting } from "obsidian";
 import { Card } from "card";
 
-// TODO: select subfolders or specific notes
-// TODO: make included folders/notes more programatic
-
-const commentRegex = /(%%sr[\w\W]*?[^\\]%%)|(?:%%[\w\W]*?(?:[^\\]%%|$))|(?:---[\w\W]*)|(?:<!--[\w\W]*?-->)/g
-const srCommentRegex = /%%sr[\w\W]*?[^\\]%%/g
+const parseLineRegex = /^(?<term>|.*?[^\\])(?<divider>::?)(?<definition>.*?)$/m
+const commentRegex = /(?:(?<a>^|[^\\])%%sr(?:(?:|.*?[^\\])%%|.*?$))|(?:(?<b>^|[^\\])%%(?:(?:|.*?[^\\])%%|.*?$))|(?:(?<c>^|[^\\])<!--(?:(?:|.*?[^\\])-->|.*?$))|(?:(?<d>^|[^\\])---.*)/gm
+const srCommentRegex = /(?:(?:^|[^\\])(?:%%sr(?<srComment>(?:(?:|.*?[^\\])%%|.*?$))))|(?:(?:^|[^\\])%%(?:(?:|.*?[^\\])%%|.*?$))|(?:(?:^|[^\\])<!--(?:(?:|.*?[^\\])-->|.*?$))|(?:(?:^|[^\\])---.*)/m
+const openCommentRegex =	/(?:^|[^\\])(?:(?:%%(?:|.*?[^\\])%%)|(?:<!--(?:|.*?[^\\])-->)|(?<comment>%%|<!--))/m
 
 export default class MyPlugin extends Plugin {
 	async onload() {
@@ -14,86 +13,97 @@ export default class MyPlugin extends Plugin {
 		});
 		
 		this.addRibbonIcon("calendar-glyph", "divination", async (evt: MouseEvent) => {
-			let allCards = await this.loadCards()
-			
-			let hits0at = -1
-			console.clear()
-			for (var daysInTheFuture = 0; daysInTheFuture < 75; daysInTheFuture++) {
-				let simulatedDate = new Date()
-				simulatedDate.setDate(simulatedDate.getDate() + daysInTheFuture)
-				
-				let cardsDueToday = allCards.filter(x => x.isDue(simulatedDate)).flatMap(x => x.flashcards).filter(x => x.isDue(simulatedDate));
-				
-				const year = simulatedDate.getFullYear().toString().padStart(4, "0");
-				const month = (simulatedDate.getMonth() + 1).toString().padStart(2, "0");
-				const day = simulatedDate.getDate().toString().padStart(2, "0");
-				
-				const formattedDate = `${year}-${month}-${day} `
-				const bar = "=".repeat(cardsDueToday.length / 2)
-				
-				console.log(`${formattedDate} ${bar} ${cardsDueToday.length}`)
-				
-				if (hits0at == -1 && cardsDueToday.length == 0) {
-					hits0at = daysInTheFuture
-				}
-				
-				for (let flashcard of cardsDueToday) {
-					let difficulties = []
-					if (flashcard.difficulty == undefined) {
-						difficulties = ["easy", "medium", "hard", "wrong"]
-					} else if (flashcard.difficulty.level < 10) {
-						difficulties = ["easy", "medium", "hard", "wrong"]
-					} else if (flashcard.difficulty.level < 100) {
-						difficulties = ["easy", "easy", "medium", "medium", "hard", "wrong"]
-					} else if (flashcard.difficulty.level < 1000) {
-						difficulties = ["easy", "medium", "hard"]
-					} else if (flashcard.difficulty.level < 10000) {
-						difficulties = ["easy", "easy", "easy", "medium", "medium", "hard"]
-					} else {
-						difficulties = ["easy", "medium"]
-					}
-					
-					const difficulty = difficulties[Math.floor(Math.random() * difficulties.length)]
-					
-					flashcard.markAs(difficulty, 0, simulatedDate)
-				}
-			}
+			this.divine(await this.loadCards(), 750)
 		});
 		
 // 		this.addSettingTab(new SampleSettingTab(this.app, this));
-// 		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
 	}
-
-	onunload() {}
 	
 	async loadCards(): Card[] {
 		let allCards: Card[] = []
 		for (let file of this.app.vault.getMarkdownFiles()) {
 			if (file.path.startsWith("flashcards")) {
-				let fileText = await this.app.vault.read(file);
-				const fileLinesWithoutComments = fileText.replace(commentRegex, "$1").split("\n").filter(line => line != "");
-				for (let line of fileLinesWithoutComments) {
-					const originalLine = line;
-					let srCommentMatches = line.match(srCommentRegex);
-					if (srCommentMatches) {
-						line = line.replace(srCommentRegex, "");
-					} else {
-						srCommentMatches = [];
-					}
-					
-					if (line.match("::")) {
-						const [term, definition] = line.split("::");
-						const isDoubleSided = true;
-						allCards.push(new Card(this.app, term, definition, isDoubleSided, srCommentMatches, file, originalLine));
-					} else if (line.match(":")) {
-						const [term, definition] = line.split(":");
-						const isDoubleSided = false;
-						allCards.push(new Card(this.app, term, definition, isDoubleSided, srCommentMatches, file, originalLine));
-					}
-				}
+				allCards.push(...await this.loadCardsFromFile(file));
 			}
 		}
 		return allCards
+	}
+	
+	async loadCardsFromFile(file: TFlie): Card[] {
+		let fileText = await this.app.vault.read(file)
+		let splitFileText = fileText.split("\n")
+		let openComment = ""
+		let outputCards = []
+		
+		for (let line of splitFileText) {
+			const originalLine = line
+			line = openComment + line
+			
+			let srCommentMatch = line.match(srCommentRegex)
+			let srComment
+			if (srCommentMatch != undefined && srCommentMatch.groups.srComment != undefined) {
+				srComment = srCommentMatch.groups.srComment.replace(/%%$/m, "")
+			}
+			
+			let lineWithoutComments = line.replace(commentRegex, "$<a>$<b>$<c>$<d>")
+			let parsedLine = lineWithoutComments.match(parseLineRegex)
+			if (parsedLine != undefined) {
+				parsedLine = parsedLine.groups
+				outputCards.push(new Card(this.app, parsedLine.term, parsedLine.definition, parsedLine.divider == "::", srComment, file, originalLine))
+			}
+			
+			const openCommentMatch = line.match(openCommentRegex)
+			if (openCommentMatch != undefined && openCommentMatch.groups.comment != undefined) {
+				openComment = openCommentMatch.groups.comment
+			} else {
+				openComment = ""
+			}
+			
+			if (line.match(/(?:^|[^\\])---/gm)) {break}
+		}
+		
+		return outputCards
+	}
+	
+	divine(inputCards, daysToSimulate) {
+		console.clear()
+		let cards = inputCards
+		for (let daysInTheFuture = 0; daysInTheFuture < daysToSimulate; daysInTheFuture++) {
+			let simulatedDate = new Date()
+			simulatedDate.setDate(simulatedDate.getDate() + daysInTheFuture)
+			
+			let cardsDueToday = cards.filter(x => x.isDue(simulatedDate)).flatMap(x => x.flashcards).filter(x => x.isDue(simulatedDate));
+			
+			const year = simulatedDate.getFullYear().toString().padStart(4, "0");
+			const month = (simulatedDate.getMonth() + 1).toString().padStart(2, "0");
+			const day = simulatedDate.getDate().toString().padStart(2, "0");
+			
+			const formattedDate = `${year}-${month}-${day} `
+			const bar = "=".repeat(cardsDueToday.length / 2)
+			
+			console.log(`${formattedDate} ${bar} ${cardsDueToday.length}`)
+			
+			for (let flashcard of cardsDueToday) {
+				let difficulties = []
+				if (flashcard.difficulty == undefined) {
+					difficulties = ["easy", "medium", "hard", "wrong"]
+				} else if (flashcard.difficulty.level < 10) {
+					difficulties = ["easy", "medium", "hard", "wrong"]
+				} else if (flashcard.difficulty.level < 100) {
+					difficulties = ["easy", "easy", "medium", "medium", "hard", "wrong"]
+				} else if (flashcard.difficulty.level < 1000) {
+					difficulties = ["easy", "medium", "hard"]
+				} else if (flashcard.difficulty.level < 10000) {
+					difficulties = ["easy", "easy", "easy", "medium", "medium", "hard"]
+				} else {
+					difficulties = ["easy", "medium"]
+				}
+				
+				const difficulty = difficulties[Math.floor(Math.random() * difficulties.length)]
+				
+				flashcard.markAs(difficulty, simulatedDate)
+			}
+		}
 	}
 }
 
@@ -169,40 +179,30 @@ class SampleModal extends Modal {
         easyButton.setAttribute("class", "sr-button");
         easyButton.setAttribute("id", "sr-easy-button");
         easyButton.setText("easy")
-        easyButton.addEventListener("click", () => {
-			this.markEasy()
-        });
+        easyButton.addEventListener("click", () => {this.markEasy()});
         
 		let mediumButton = this.buttonDiv.createDiv();
         mediumButton.setAttribute("class", "sr-button");
         mediumButton.setAttribute("id", "sr-medium-button");
         mediumButton.setText("medium");
-        mediumButton.addEventListener("click", () => {
-			this.markMedium()
-        });
+        mediumButton.addEventListener("click", () => {this.markMedium()});
         
 		let hardButton = this.buttonDiv.createDiv();
         hardButton.setAttribute("class", "sr-button");
         hardButton.setAttribute("id", "sr-hard-button");
         hardButton.setText("hard");
-        hardButton.addEventListener("click", () => {
-			this.markHard()
-        });
+        hardButton.addEventListener("click", () => {this.markHard()});
         
 		let wrongButton = this.buttonDiv.createDiv();
         wrongButton.setAttribute("class", "sr-button");
         wrongButton.setAttribute("id", "sr-wrong-button");
         wrongButton.setText("wrong")
-        wrongButton.addEventListener("click", () => {
-			this.markWrong()
-        });
+        wrongButton.addEventListener("click", () => {this.markWrong()});
 		
 		this.showAnswerButton = contentEl.createDiv();
         this.showAnswerButton.setAttribute("id", "sr-show-answer-button");
         this.showAnswerButton.setText("show answer");
-        this.showAnswerButton.addEventListener("click", () => {
-			this.showBack();
-        });
+        this.showAnswerButton.addEventListener("click", () => {this.showBack()});
         
         this.nextCard();
 	}
@@ -216,6 +216,7 @@ class SampleModal extends Modal {
 		
 		if (this.currentCardIndex != -1 && !this.cards[this.currentCardIndex].isDue()) {
 			this.cards.splice(this.currentCardIndex, 1);
+			console.log("splice")
 			this.currentCardIndex = -1;
 		}
 		
