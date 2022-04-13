@@ -12,6 +12,20 @@ export default class MyPlugin extends Plugin {
 			new SampleModal(this.app, await this.loadCards()).open();
 		});
 		
+		this.addRibbonIcon("switch", "review", async (evt: MouseEvent) => {
+			let file = this.app.workspace.getActiveFile()
+			let cards: Card[] = await this.loadCardsFromFile(file)
+			
+			for (let card of cards) {
+				for (let flashcard of card.flashcards) {
+					flashcard.dueDate = new Date()
+					flashcard.level = 0
+				}
+			}
+			
+			new SampleModal(this.app, cards, false).open();
+		});
+		
 		this.addRibbonIcon("calendar-glyph", "divination", async (evt: MouseEvent) => {
 			this.divine(await this.loadCards(), 750)
 		});
@@ -109,6 +123,7 @@ export default class MyPlugin extends Plugin {
 
 class SampleModal extends Modal {
 	showingBack: boolean = false
+	writeChanges: boolean = true
 	buttonDiv: HTMLElement
 	frontDiv: HTMLElement
 	backDiv: HTMLElement
@@ -117,9 +132,10 @@ class SampleModal extends Modal {
 	currentCardIndex: number = -1
 	currentFlashcard: Flashcard
 	
-	constructor(app: App, cards: Card[]) {
+	constructor(app: App, cards: Card[], writeChanges: bool = true) {
 		super(app);
 		this.cards = cards.filter(x => x.isDue())
+		this.writeChanges = writeChanges
 	}
 	
 	onOpen() {
@@ -210,7 +226,7 @@ class SampleModal extends Modal {
 	nextCard() {
 		this.hideBack();
 		
-		if (this.currentCardIndex != -1) {
+		if (this.writeChanges && this.currentCardIndex != -1) {
 			this.cards[this.currentCardIndex].writeChanges();
 		}
 		

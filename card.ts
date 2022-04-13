@@ -11,7 +11,7 @@ function base10to65536(inputNumber) {
 		output = String.fromCharCode(inputNumber % 2 ** 16) + output;
 		inputNumber = Math.floor(inputNumber / 2 ** 16);
 	} while(inputNumber > 0);
-	return output.replace(/([%\\`\[\]])/g, "\\$1").replace("\n", "\\n").replace("\r", "\\r")
+	return output.replace(/([%\\`\[\]])/g, "\\$1").replaceAll("\n", "\\n").replaceAll("\r", "\\r")
 }
 
 function base65536to10(inputString) {
@@ -48,10 +48,10 @@ export class Card {
 		this.originalTerm = term.trim();
 		this.originalDefinition = definition.trim();
 		
-		let inputTerms = term.replace("\\/", "|||||") // TODO: find a better way to do this
-		inputTerms = inputTerms.split("/").map(x => x.replace("|||||", "/").trim());
-		let definitions = definition.replace("\\/", "|||||")
-		definitions = definitions.split("/").map(x => x.replace("|||||", "/").trim());
+		let inputTerms = term.replaceAll("\\/", "|||||") // TODO: find a better way to do this
+		inputTerms = inputTerms.split("/").map(x => x.replaceAll("|||||", "/").trim());
+		let definitions = definition.replaceAll("\\/", "|||||")
+		definitions = definitions.split("/").map(x => x.replaceAll("|||||", "/").trim());
 		
 		let uniqueKanji = []
 		let uniqueReadings = []
